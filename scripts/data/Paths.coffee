@@ -7,7 +7,7 @@ class Paths
         @paths.push(
             [
                 new THREE.Vector3( 0, 0, 0 ),
-                new THREE.Vector3( -22.494, -0.894, 0 ),
+                new THREE.Vector3( -22.494, 15.894, 0 ),
                 new THREE.Vector3( -22.63, -19.924, 0 ),
                 new THREE.Vector3( -10.888, -31.55, 0 ),
                 new THREE.Vector3( 5.059, -30.598, 0 ),

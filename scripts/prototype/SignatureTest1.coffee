@@ -1,7 +1,8 @@
 
 # EXTERNAL LIBS
 THREE = require '../lib/Three.js'
-
+dat = require '../lib/dat.gui.js'
+Canvas2Image = require '../lib/canvas2image.js'
 # 
 Preset = require '../app/preset/Preset.coffee'
 Paths = require '../data/Paths.coffee'
@@ -15,11 +16,67 @@ class SignatureTest1 extends Preset
 
         super @container, settings
 
+        @settings = {
+
+            showPaths: false,
+            showPoints: false,
+            saveCanvas: false,
+
+            showParticles: true,
+
+            showAttractors: false
+
+
+            strokeSize: 0.15,
+            bgImgSrc: 'images/test-bg-slim.jpg',
+
+            imgSrc: 'images/brush8.png',
+            imageSrcOptions: {
+                'Splash': 'images/brush5.png',
+                'Solid': 'images/brush6.png',
+                'Solid2': 'images/brush7.png',
+                'Solid3': 'images/brush8.png',
+            },
+
+        }
 
         @createPaths()
+        @initBG()
         @initParticles()
         @startEmitters()
+        @createGUI()
 
+
+    createGUI: () ->
+
+       @gui = new dat.GUI({load: JSON})
+
+       saveController = @gui.add( @settings , "saveCanvas").name('Save Image')
+       saveController.onChange (e)=>
+            if !!e
+                Canvas2Image.saveAsPNG(@canvas);
+
+       @gui.add( @settings , "showPaths" ).name("Paths")
+       @gui.add( @settings , "showPoints" ).name("Points")
+
+       # FOLDER 1
+       f1 = @gui.addFolder( 'Stroke Settings' )
+       f1.open()
+
+       f1.add( @settings, "showParticles" ). name("Strokes")
+       f1.add( @settings, "strokeSize", 0.15, 1.8 ).name("Size")
+
+       strokeController = f1.add( @settings, 'imgSrc', @settings.imageSrcOptions ). name("Brush Texture")
+       strokeController.onFinishChange (val) =>
+            console.log val
+            @loadStroke val
+
+       # FOLDER 2
+       f2 = @gui.addFolder( 'Emitter Settings' )
+       f2.open()
+
+
+       @gui.remember(@settings)
 
     createPaths: ()->
 
@@ -38,8 +95,12 @@ class SignatureTest1 extends Preset
 
 
         for path in @paths
-            for p in path
-                p.multiply new THREE.Vector3( 1, -1, 1 )
+
+            path.unshift new THREE.Vector3( -window.innerWidth/9, 0, 1 )
+
+            path.push new THREE.Vector3( window.innerWidth/9, 0, 1 )
+            # for p in path
+            #     p.multiply new THREE.Vector3( 1, -1, 1 )
 
         tl = @getPathsTopLeft()
 
@@ -51,10 +112,53 @@ class SignatureTest1 extends Preset
             #scale path
             @scale path, 4.5
 
-            @displace path, new THREE.Vector3( -400, 0, 0 )
+            # @displace path, new THREE.Vector3( -400, 0, 0 )
 
-        @createLine @paths[0], '#cccccc'
+        @createLine @paths[0], '#ffffff'
 
+
+    initBG: () ->
+        @bgCanvas = document.createElement 'canvas'
+        @bgCanvas.width = @width
+        @bgCanvas.height = @height
+        @bgCtx = @bgCanvas.getContext '2d'
+
+        @bgSprite = new Image()
+        @bgSprite.onload = () =>
+            @bgCtx.clearRect 0, 0, @width, @height
+            @bgCtx.drawImage @bgSprite, 0, 0, @width, @height
+
+        @bgSprite.src = @settings.bgImgSrc
+
+
+    loadStroke: (url) ->
+        @sprite = new Image()
+        @ready = false
+        @sprite.onload = () =>
+            @particlesCtx.clearRect 0, 0, @width, @height
+            @spriteCanvas = document.createElement 'canvas'
+            @spriteCanvas.width = @sprite.width
+            @spriteCanvas.height = @sprite.height
+            @spriteCtx = @spriteCanvas.getContext '2d'
+            @spriteCtx.drawImage @sprite, 0, 0
+
+            ### colour overlay ###
+            imgd = @spriteCtx.getImageData 0, 0, @width, @height
+            pix = imgd.data
+            uniqueColor = [255,255,255]
+
+            for i in [0..pix.length] by 4
+                pix[i] = uniqueColor[0]   # Red component
+                pix[i+1] = uniqueColor[1] # Blue component
+                pix[i+2] = uniqueColor[2] # Green component
+                # pix[i+3] is the transparency.
+
+            @spriteCtx.putImageData(imgd, 0, 0);
+            # @createColorTable()
+            @shadowCount = 0
+            @ready = true
+
+        @sprite.src = url
 
     initParticles: () ->
         @boids = []
@@ -63,25 +167,13 @@ class SignatureTest1 extends Preset
         @uv = new THREE.Vector2 0, 0
 
 
-        @sprite = new Image()
-
-        @sprite.onload = () =>
-            can = document.createElement 'canvas'
-            can.width = @sprite.width
-            can.height = @sprite.height
-            @spriteCtx = can.getContext '2d'
-            @spriteCtx.drawImage @sprite, 0, 0
-            # @createColorTable()
-            @shadowCount = 0
-            @ready = true
-
-        @sprite.src = 'images/brush5.png'
+        @loadStroke(@settings.imgSrc)
         
         @particlesCanvas = document.createElement 'canvas'
         @particlesCanvas.width = @width
         @particlesCanvas.height = @height
         @particlesCtx = @particlesCanvas.getContext '2d'
-        console.log @particlesCtx
+        
 
         @boidsCanvas = document.createElement 'canvas'
         @boidsCanvas.width = @width
@@ -112,6 +204,7 @@ class SignatureTest1 extends Preset
 
     addBoid: ( pId ) ->
 
+        @particlesCtx.clearRect 0, 0, @width, @height
         console.log 'addBoid', pId
         path = @lines[pId]
         boid = new PathSteeringBoid path, 5 + ( 1 + Math.random() ) * 0/100, 1, true
@@ -119,6 +212,10 @@ class SignatureTest1 extends Preset
         @boids.push boid
 
         return boid
+
+
+    createPoints: () ->
+
 
 
     createLine: (opts, col='#333333') ->
@@ -192,8 +289,6 @@ class SignatureTest1 extends Preset
         if !@ready 
             return
 
-        @ctx.drawImage @linesCanvas, 0, 0
-
         @boidsCtx.clearRect 0, 0, @width, @height
         @boidsCtx.fillStyle = "#ff3333"
         @boidsCtx.strokeStyle = "#ff3333"
@@ -211,34 +306,38 @@ class SignatureTest1 extends Preset
             @boidsCtx.rotate r
 
             @boidsCtx.beginPath()
-            @boidsCtx.arc 0, 0, 2, 0, TP
+            @boidsCtx.arc 0, 0, 3, 0, TP
             @boidsCtx.closePath()
             @boidsCtx.fill()
 
             @boidsCtx.beginPath()
-            @boidsCtx.arc 0, 0, 5, 0, TP
+            @boidsCtx.arc 0, 0, 20, 0, TP
             @boidsCtx.closePath()
             @boidsCtx.stroke()
-
             @boidsCtx.restore()
 
+            # RENDER PARTICLES, HENCE STROKES
             @particlesCtx.save()
             @particlesCtx.translate p.x, p.y
-            @particlesCtx.rotate r*Math.random()
-            tmpScale = Math.random()
+            @particlesCtx.rotate r
+            tmpScale = @settings.strokeSize #Math.random()
             @particlesCtx.scale tmpScale, tmpScale
-            @particlesCtx.drawImage @sprite, -42, -42
+            @particlesCtx.drawImage @spriteCanvas, -42, -42
             # @particlesCtx.beginPath()
             # @particlesCtx.arc 0, 0, 2, 0, TP
             # @particlesCtx.closePath()
             # @particlesCtx.fill()
-
             @particlesCtx.restore()
 
-            
-
-        @ctx.drawImage @particlesCanvas, 0, 0
-        @ctx.drawImage @boidsCanvas, 0, 0
+        
+        # DRAW IMAGES
+        @ctx.drawImage @bgCanvas, 0, 0
+        if(@settings.showPaths)
+            @ctx.drawImage @linesCanvas, 0, 0
+        if(@settings.showParticles)
+            @ctx.drawImage @particlesCanvas, 0, 0
+        if(@settings.showPoints)
+            @ctx.drawImage @boidsCanvas, 0, 0
 
 
     resize: ( w, h ) ->
