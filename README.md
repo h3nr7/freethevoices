@@ -1,5 +1,5 @@
 Free The Voices
 ===============
 
-An MPC project for WK Amsterdam, for the charity CHI.
+An old MPC project for WK Amsterdam, for CHI.
 
